@@ -10,6 +10,7 @@ import numpy as np
 from pyfr.shapes import BaseShape
 from pyfr.util import subclass_where
 from pyfr.writers import BaseWriter
+from pyfr.nputil import block_diag
 
 
 class ParaviewWriter(BaseWriter):
@@ -206,6 +207,57 @@ class ParaviewWriter(BaseWriter):
         vsol = np.dot(soln_vtu_op, soln.reshape(-1, self.nvars*neles))
         vsol = vsol.reshape(nsvpts, self.nvars, -1).swapaxes(0, 1)
 
+        # Compute the transformed uncorrected gradient
+        tgrad = np.dot(soln_b.opmat('M4'),soln.reshape(-1, self.nvars*neles))
+        ele = self.elementscls(shapecls, mesh, self.cfg)
+        smats, djacs = ele._get_smats(soln_b.upts, True)
+        grad = np.zeros(tgrad.shape)
+
+        # Compute the physical uncorrected gradient
+        for i in range(soln.shape[2]):
+            for j in range(soln.shape[0]):
+                for k in range(soln.shape[1]):
+                    for l in range(self.ndims):
+                        for m in range(self.ndims):
+                            grad[l*soln.shape[0]+j][k*soln.shape[2]+i] += 1.0/djacs[j][i]*tgrad[m*soln.shape[0]+j][k*soln.shape[2]+i]*smats[m][j][l][i]
+
+         # smats, rjacs
+        ele = self.elementscls(shapecls, mesh, self.cfg)
+        smats, djacs = ele._get_smats(soln_b.upts, True)
+        rjacs = 1.0/djacs
+
+        # Dimensions
+        ndims = self.ndims
+        neles = ele.neles
+        nvars = ele.nvars
+        nupts = ele.nupts
+
+        # tgard (ndim, nupts, nvars, neles)
+        tgrad = np.dot(soln_b.opmat('M4'), soln.swapaxes(0,1)).reshape(ndims, nupts, nvars, neles)
+
+        # Eigensum
+        grad = np.einsum('ijkl,kjml,jl->ijml', smats, tgrad, rjacs).reshape(ndims*nupts, -1)
+
+        # Interpolate gradient to nodes of vtu elements
+        if self.ndims == 2:
+            grad_vtu_op = block_diag((soln_vtu_op,soln_vtu_op))
+        if self.ndims == 3:
+            grad_vtu_op = block_diag((soln_vtu_op,soln_vtu_op,soln_vtu_op))
+        vgrd = np.dot(grad_vtu_op, grad)
+
+        # Rearrange the gradient matrix
+        if self.ndims == 2:
+            vgrd = np.concatenate((np.array_split(vgrd,2)[0],np.array_split(vgrd,2)[1]),axis=1)
+        if self.ndims == 3:
+            vgrd = np.concatenate((np.array_split(vgrd,3)[0],np.array_split(vgrd,3)[1],np.array_split(vgrd,3)[2]),axis=1)
+
+        vgrd = vgrd.reshape(nsvpts, self.nvars*self.ndims, -1).swapaxes(0, 1)
+
+        # Concatenate solution and gradient arrays
+        vsol = np.concatenate((vsol,vgrd),axis=0)
+
+
+
         # Append dummy z dimension for points in 2D
         if self.ndims == 2:
             vpts = np.pad(vpts, [(0, 0), (0, 0), (0, 1)], 'constant')
@@ -234,17 +286,17 @@ class ParaviewWriter(BaseWriter):
 
         # Primitive and visualisation variable maps
         privarmap = self.elementscls.privarmap[self.ndims]
+        convarmap = self.elementscls.convarmap[self.ndims]
+        outvarmap = self.elementscls.outvarmap[self.ndims]
         visvarmap = self.elementscls.visvarmap[self.ndims]
 
         # Convert from conservative to primitive variables
-        vsol = np.array(self.elementscls.conv_to_pri(vsol, self.cfg))
+        # vsol = np.array(self.elementscls.conv_to_pri(vsol, self.cfg))
 
         # Write out the various fields
         for vnames in visvarmap.values():
-            ix = [privarmap.index(vn) for vn in vnames]
-
+            ix = [outvarmap.index(vn) for vn in vnames]
             self._write_darray(vsol[ix].T, vtuf, self.dtype)
-
 
 class BaseShapeSubDiv(object):
     vtk_types = dict(tri=5, quad=9, tet=10, pyr=14, pri=13, hex=12)

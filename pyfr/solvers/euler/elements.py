@@ -10,13 +10,22 @@ class BaseFluidElements(object):
     convarmap = {2: ['rho', 'rhou', 'rhov', 'E'],
                  3: ['rho', 'rhou', 'rhov', 'rhow', 'E']}
 
+    outvarmap = {2: ['rho', 'u', 'v', 'p','rho_x', 'rhou_x', 'rhov_x', 'E_x', 'rho_y', 'rhou_y', 'rhov_y', 'E_y'],
+                 3: ['rho', 'u', 'v', 'w', 'p', 'rho_x', 'rhou_x', 'rhov_x', 'rhow_x', 'E_x', 'rho_y', 'rhou_y', 'rhov_y', 'rhow_y', 'E_y', 'rho_z', 'rhou_z', 'rhov_z', 'rhow_z', 'E_z']}
+
     visvarmap = {
         2: {'density': ['rho'],
             'velocity': ['u', 'v'],
-            'pressure': ['p']},
+            'pressure': ['p'],
+            'grad_density': ['rho_x', 'rho_y'],
+            'grad_momentum': ['rhou_x', 'rhou_y', 'rhov_x', 'rhov_y'],
+            'grad_energy': ['E_x','E_y']},
         3: {'density': ['rho'],
             'velocity': ['u', 'v', 'w'],
-            'pressure': ['p']}
+            'pressure': ['p'],
+            'grad_density': ['rho_x', 'rho_y', 'rho_z'],
+            'grad_momentum': ['rhou_x', 'rhou_y', 'rhou_z', 'rhov_x', 'rhov_y', 'rhov_z', 'rhow_x', 'rhow_y', 'rhow_z'],
+            'grad_energy': ['E_x','E_y','E_z']}
     }
 
     @staticmethod
