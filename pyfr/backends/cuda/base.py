@@ -45,7 +45,7 @@ class CUDABackend(BaseBackend):
         context.set_cache_config(cuda.func_cache.PREFER_SHARED)
 
         from pyfr.backends.cuda import (blasext, cublas, gimmik, packing, 
-                                        provider,types)
+                                        provider, types)
 
         # Register our data types
         self.base_matrix_cls = types.CUDAMatrixBase

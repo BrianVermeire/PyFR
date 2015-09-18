@@ -126,3 +126,4 @@ class CUDAQueue(base.Queue):
         # Wait for all tasks to complete
         for q in queues:
             q._wait()
+
