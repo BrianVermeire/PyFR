@@ -81,7 +81,7 @@ class DualNoneController(BaseDualController):
                     self.pseudostepinfo.append((self.npseudosteps + 1, i + 1,
                                                 tuple(resid)))
 
-                    if max(resid) < self._pseudo_residtol:
+                    if np.all(resid[1:] < self._pseudo_residtol):
                         break
                 else:
                     self.pseudostepinfo.append((self.npseudosteps + 1, i + 1,
