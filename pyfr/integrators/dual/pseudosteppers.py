@@ -178,3 +178,68 @@ class DualPseudoRK4Stepper(BaseDualPseudoStepper):
 
         # Return the index of the bank containing u(n+1,m+1)
         return r1, r0
+
+class DualPseudoRK71Stepper(BaseDualPseudoStepper):
+    pseudo_stepper_name = 'rk71'
+
+    @property
+    def _stepper_nfevals(self):
+        return 7*self.nsteps
+
+    @property
+    def _pseudo_stepper_nregs(self):
+        return 8
+
+    @property
+    def _pseudo_stepper_order(self):
+        return 1
+
+    def step(self, t, dt, dtau):
+        add, add_with_dts  = self._add, self._add_with_dts
+        rhs = self.system.rhs
+        rat = dtau / dt
+
+        A = np.loadtxt('A.txt')
+        B = np.loadtxt('b.txt')
+        C = np.loadtxt('c.txt')
+
+        # Get the bank indices for pseudo-registers (n+1,m; n+1,m+1; rhs),
+        # where m = pseudo-time and n = real-time
+        r0, r1, r2, r3, r4, r5, r6, r7 = self._stepper_regidx
+
+        # Ensure r0 references the bank containing u(n+1,m)
+        if r0 != self._idxcurr:
+            r0, r1 = r1, r0
+
+        # First stage; r1 = -∇·f(r0)
+        rhs(t, r0, r1)
+
+        # Second stage; r2 = r0 + a10*dtau*r1 - c1*dtau*dQ/dt; r2 = -∇·f(r2)
+        add_with_dts(0, r2, 1, r0, A[1,0]*dtau, r1, c=C[1]*rat)
+        rhs(t, r2, r2)
+
+        # Third stage; r3 = r0 + a20*dtau*r1 + a21*dtau*r2 - c2*dtau*dQ/dt; r3 = -∇·f(r3)
+        add_with_dts(0, r3, 1, r0, A[2,0]*dtau, r1, A[2,1]*dtau, r2, c=C[2]*rat)
+        rhs(t, r3, r3)
+
+        # Fourth stage; r4 = r0 + a30*dtau*r1 + a31*dtau*r2 + a32*dtau*r3 - c3*dtau*dQ/dt; r4 = -∇·f(r4)
+        add_with_dts(0, r4, 1, r0, A[3,0]*dtau, r1, A[3,1]*dtau, r2, A[3,2]*dtau, r3, c=C[3]*rat)
+        rhs(t, r4, r4)
+
+        # Fifth stage; r5 = r0 + a40*dtau*r1 + a41*dtau*r2 + a42*dtau*r3 + a43*dtau*r4 - c4*dtau*dQ/dt; r5 = -∇·f(r5)
+        add_with_dts(0, r5, 1, r0, A[4,0]*dtau, r1, A[4,1]*dtau, r2, A[4,2]*dtau, r3, A[4,3]*dtau, r4, c=C[4]*rat)
+        rhs(t, r5, r5)
+
+        # Sixth stage; r6 = r0 + a50*dtau*r1 + a51*dtau*r2 + a52*dtau*r3 + a53*dtau*r4 + a54*dtau*r5 - c5*dtau*dQ/dt; r6 = -∇·f(r6)
+        add_with_dts(0, r6, 1, r0, A[5,0]*dtau, r1, A[5,1]*dtau, r2, A[5,2]*dtau, r3, A[5,3]*dtau, r4, A[5,4]*dtau, r5, c=C[5]*rat)
+        rhs(t, r6, r6)
+
+        # Seventh stage; r7 = r0 + a60*dtau*r1 + a61*dtau*r2 + a62*dtau*r3 + a63*dtau*r4 + a64*dtau*r5 + a65*dtau*r6 - c6*dtau*dQ/dt; r7 = -∇·f(r7)
+        add_with_dts(0, r7, 1, r0, A[6,0]*dtau, r1, A[6,1]*dtau, r2, A[6,2]*dtau, r3, A[6,3]*dtau, r4, A[6,4]*dtau, r5, A[6,5]*dtau, r6, c=C[6]*rat)
+        rhs(t, r7, r7)
+
+        # Final accumulation
+        add_with_dts(B[0]*dtau, r1, 1, r0, B[1]*dtau, r2, B[2]*dtau, r3, B[3]*dtau, r4, B[4]*dtau, r5, B[5]*dtau, r6, B[6]*dtau, r7, c=rat)
+
+        # Return the index of the bank containing u(n+1,m+1)
+        return r1, r0
